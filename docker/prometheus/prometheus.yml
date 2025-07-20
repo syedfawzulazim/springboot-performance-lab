@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 2s # How often to scrape metrics from targets (every 2 seconds)
+  evaluation_interval: 2s # How often to evaluate rules (every 2 seconds)
+
+scrape_configs:
+  - job_name: 'product-service'           # Identifier for this scrape job
+    metrics_path: '/actuator/prometheus'  # Path where Prometheus will scrape metrics from the service
+    static_configs:
+      - targets: ['product-service:8080']  # Hostname and port of the product-service container
+        labels:
+          application: 'Product Service'   # Add a label to identify metrics from this service
