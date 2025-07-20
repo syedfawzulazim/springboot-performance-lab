@@ -13,6 +13,20 @@ services:
     networks:
       - backend-net
 
+  mongodb-exporter:
+    image: percona/mongodb_exporter:0.44.0
+    container_name: mongodb-exporter
+    ports:
+      - "9216:9216"
+    command:
+      - "--mongodb.uri=mongodb://root:password@product-mongodb:27017/admin"
+      - "--collect-all"
+      - "--compatible-mode"
+    depends_on:
+      - product-mongodb
+    networks:
+      - backend-net
+
   product-service:
     build: ./product-service
     container_name: product-service

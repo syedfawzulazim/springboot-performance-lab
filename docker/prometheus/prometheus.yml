@@ -9,3 +9,8 @@ scrape_configs:
       - targets: ['product-service:8080']  # Hostname and port of the product-service container
         labels:
           application: 'Product Service'   # Add a label to identify metrics from this service
+  - job_name: 'mongodb'
+    static_configs:
+      - targets: ['mongodb-exporter:9216'] # MongoDB Exporter's container name and port
+        labels:
+          application: 'MongoDB'           # Label to identify MongoDB metrics# Scrape job for MongoDB Exporter
