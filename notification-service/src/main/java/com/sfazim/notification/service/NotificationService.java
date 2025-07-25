@@ -25,19 +25,35 @@ public class NotificationService {
     public void listen(Message<String> message) throws JsonProcessingException {
         String messageJson = message.getPayload();
 
-//        ObjectMapper mapper = new ObjectMapper();
-//        OrderCreatedMessage orderCreatedMessage = mapper.readValue(messageJson, OrderCreatedMessage.class);
+        ObjectMapper mapper = new ObjectMapper();
+        OrderCreatedMessage orderCreatedMessage = mapper.readValue(messageJson, OrderCreatedMessage.class);
 
-//        log.info("Got Message from order-crated with id: {}", orderCreatedMessage.getOrderNumber());
-//        log.info("Got Message from order-crated with email: {}", orderCreatedMessage.getEmail());
-        System.out.println(messageJson);
+        log.info("Got Message from order-crated with id: {}", orderCreatedMessage.getOrderNumber());
+        System.out.println("Message: " +messageJson);
 
-        //Acknowledgement.acknowledge(message);
+        //preparing email
+        MimeMessagePreparator messagePreparator = mimeMessage -> {
+            MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage);
+            messageHelper.setFrom("springshop@email.com");
+            messageHelper.setTo(orderCreatedMessage.getEmail());
+            messageHelper.setSubject(String.format("Your Order with OrderNumber %s is placed successfully", orderCreatedMessage.getOrderNumber()));
+            messageHelper.setText(String.format("""
+                            Hi %s %s,
+
+                            Your order with order number %s is now placed successfully.
+
+                            Best Regards
+                            Spring Shop
+                            """,
+                    orderCreatedMessage.getFirstName(),
+                    orderCreatedMessage.getLastName(),
+                    orderCreatedMessage.getOrderNumber()));
+        };
 
         try {
-            throw new RuntimeException("Processing failed");
-            //javaMailSender.send(messagePreparator);
-            //log.info("Order Notification email sent!!");
+            javaMailSender.send(messagePreparator);
+            log.info("Order Notification email sent!!");
+            Acknowledgement.acknowledge(message);
         } catch (MailException e) {
             log.error("Exception occurred when sending mail", e);
             throw new RuntimeException("Exception occurred when sending mail to springshop@email.com", e);
