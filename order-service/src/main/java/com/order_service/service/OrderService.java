@@ -21,7 +21,6 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderSender orderSender;
-    private SqsTemplate sqsTemplate;
 
     public void placeOrder(OrderRequest orderRequest){
         // simulate inventory service call
@@ -51,14 +50,18 @@ public class OrderService {
 
                 log.info("Start - Sending OrderCreatedMessage to SQS : {}", orderCreatedMessage);
 
+                orderSender.sendOrderNotification("ORDER_TOPIC", OrderCreatedMessageJson);
+
+               /*
                 orderSender.sendOrderMessage(String.valueOf(QUEUE_NAME.ORDER_CREATED_QUEUE), OrderCreatedMessageJson);
+                orderSender.sendOrderMessage(String.valueOf(QUEUE_NAME.ORDER_SHIPPED_QUEUE), OrderCreatedMessageJson);
+               */
 
                 log.info("End - Finished OrderCreatedMessage to SQS") ;
 
             } catch (Exception e){
                 throw new RuntimeException(e);
             }
-
 
         } else {
             throw new RuntimeException("Product with SkuCode " + orderRequest.skuCode() + " is not in stock");

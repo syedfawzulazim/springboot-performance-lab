@@ -6,50 +6,50 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
-import software.amazon.awssdk.services.sqs.model.CreateQueueRequest;
-import software.amazon.awssdk.services.sqs.model.CreateQueueResponse;
-import software.amazon.awssdk.services.sqs.model.GetQueueAttributesRequest;
-import software.amazon.awssdk.services.sqs.model.QueueAttributeName;
+import software.amazon.awssdk.services.sqs.model.*;
 
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
-@Component
+@Component("sqsQueueInitializer")
 public class SqsQueueInitializer {
 
     private final SqsAsyncClient sqsAsyncClient;
-    private final String mainQueueName;
-    private final String dlqQueueName = "ORDER_DLQ";
+    private final List<String> mainQueueNames;
 
-    private static final int MAX_RECEIVE_COUNT = 5; // Number of failed attempts before moving to DLQ
-    private static final int LONG_POLLING_WAIT_TIME_SECONDS = 20; // Long polling wait time
-    private static final int VISIBILITY_TIMEOUT_SECONDS = 60; // Visibility timeout
+    private static final int MAX_RECEIVE_COUNT = 5;
+    private static final int LONG_POLLING_WAIT_TIME_SECONDS = 20;
+    private static final int VISIBILITY_TIMEOUT_SECONDS = 3;
 
-
-    public SqsQueueInitializer(SqsAsyncClient sqsAsyncClient, @Value("${queue.name}") String queueName) {
+    public SqsQueueInitializer(SqsAsyncClient sqsAsyncClient,
+                               @Value("${queue.names}") String queueNames) {
         this.sqsAsyncClient = sqsAsyncClient;
-        this.mainQueueName = queueName;
+        this.mainQueueNames = Arrays.asList(queueNames.split(","));
     }
 
     @PostConstruct
-    public void createQueue() {
-        createDlq()
-                .thenCompose(this::getDlqArn)
-                .thenCompose(this::createMainQueueWithDlq)
-                .thenAccept(response -> System.out.println("Main queue created: " + response.queueUrl()))
-                .exceptionally(ex -> {
-                    System.err.println("Failed to create queues: " + ex.getMessage());
-                    ex.getMessage();
-                    return null;
-                });
+    public void createQueues() {
+        for (String mainQueueName : mainQueueNames) {
+            String dlqName = mainQueueName + "_DLQ";
+
+            CompletableFuture<Void> future =  createDlq(dlqName)
+                    .thenCompose(dlqRes -> getDlqArn(dlqRes.queueUrl()))
+                    .thenCompose(dlqArn -> createMainQueueWithDlq(mainQueueName, dlqArn))
+                    .thenAccept(res -> System.out.println("Queue created: " + res.queueUrl()))
+                    .exceptionally(ex -> {
+                        System.err.println("Failed to create queues for " + mainQueueName + ": " + ex.getMessage());
+                        return null;
+                    });
+            future.join();
+        }
     }
 
-    private CompletableFuture<CreateQueueResponse> createDlq() {
-        CreateQueueRequest dlqRequest = CreateQueueRequest.builder()
-                .queueName(dlqQueueName)
+    private CompletableFuture<CreateQueueResponse> createDlq(String dlqName) {
+        CreateQueueRequest request = CreateQueueRequest.builder()
+                .queueName(dlqName)
                 .build();
 
-        return sqsAsyncClient.createQueue(dlqRequest)
+        return sqsAsyncClient.createQueue(request)
                 .whenComplete((res, ex) -> {
                     if (ex == null) {
                         System.out.println("DLQ created: " + res.queueUrl());
@@ -59,48 +59,41 @@ public class SqsQueueInitializer {
                 });
     }
 
-    private CompletableFuture<String> getDlqArn(CreateQueueResponse dlqResponse) {
-        String dlqUrl = dlqResponse.queueUrl();
+    private CompletableFuture<String> getDlqArn(String dlqUrl) {
         GetQueueAttributesRequest attrRequest = GetQueueAttributesRequest.builder()
                 .queueUrl(dlqUrl)
                 .attributeNames(QueueAttributeName.QUEUE_ARN)
                 .build();
 
         return sqsAsyncClient.getQueueAttributes(attrRequest)
-                .thenApply(attrRes -> attrRes.attributes().get(QueueAttributeName.QUEUE_ARN));
+                .thenApply(attrs -> attrs.attributes().get(QueueAttributeName.QUEUE_ARN));
     }
 
-    private CompletableFuture<CreateQueueResponse> createMainQueueWithDlq(String dlqArn) {
+    private CompletableFuture<CreateQueueResponse> createMainQueueWithDlq(String queueName, String dlqArn) {
         try {
-            Map<QueueAttributeName, String> attributes = getQueueAttributeNameStringMap(dlqArn);
-
-            CreateQueueRequest mainQueueRequest = CreateQueueRequest.builder()
-                    .queueName(mainQueueName)
+            Map<QueueAttributeName, String> attributes = getQueueAttributes(dlqArn);
+            CreateQueueRequest request = CreateQueueRequest.builder()
+                    .queueName(queueName)
                     .attributes(attributes)
                     .build();
+            return sqsAsyncClient.createQueue(request);
 
-            return sqsAsyncClient.createQueue(mainQueueRequest);
-
-        } catch (Exception e) {
-            System.err.println("Error preparing redrive policy for main queue: " + e.getMessage());
+        } catch (JsonProcessingException e) {
             return CompletableFuture.failedFuture(e);
         }
     }
 
-    private static Map<QueueAttributeName, String> getQueueAttributeNameStringMap(String dlqArn) throws JsonProcessingException {
+    private static Map<QueueAttributeName, String> getQueueAttributes(String dlqArn) throws JsonProcessingException {
         ObjectMapper mapper = new ObjectMapper();
-        Map<String, Object> redrivePolicy = Map.of(
+        String redrivePolicy = mapper.writeValueAsString(Map.of(
                 "deadLetterTargetArn", dlqArn,
                 "maxReceiveCount", MAX_RECEIVE_COUNT
-        );
-        String redrivePolicyJson = mapper.writeValueAsString(redrivePolicy);
+        ));
 
-        Map<QueueAttributeName, String> attributes = Map.of(
-                QueueAttributeName.REDRIVE_POLICY, redrivePolicyJson,
+        return Map.of(
+                QueueAttributeName.REDRIVE_POLICY, redrivePolicy,
                 QueueAttributeName.RECEIVE_MESSAGE_WAIT_TIME_SECONDS, String.valueOf(LONG_POLLING_WAIT_TIME_SECONDS),
                 QueueAttributeName.VISIBILITY_TIMEOUT, String.valueOf(VISIBILITY_TIMEOUT_SECONDS)
         );
-        return attributes;
     }
-
 }
