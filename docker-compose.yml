@@ -39,9 +39,9 @@ services:
     networks:
       - backend-net
 
-  order-mysql:
+  mysql:
     image: mysql:8.3.0
-    container_name: order-mysql
+    container_name: mysql
     environment:
       MYSQL_ROOT_PASSWORD: mysql
     ports:
@@ -60,7 +60,7 @@ services:
     volumes:
       - ./order-service:/app
     depends_on:
-      - order-mysql
+      - mysql
       - localstack
     networks:
       - backend-net

@@ -21,5 +21,6 @@
         <module>notification-service</module>
         <module>shipping-service</module>
         <module>db_performance</module>
+        <module>inventory-service</module>
     </modules>
 </project>
