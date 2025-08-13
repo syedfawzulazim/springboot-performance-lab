@@ -128,5 +128,17 @@ services:
       networks:
         - backend-net
 
+
+  db-mysql:
+    image: mysql:8.3.0
+    container_name: db-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./.data/mysql_db:/var/lib/mysql
+      - ./docker/mysql/init_2.sql:/docker-entrypoint-initdb.d/init_2.sql
+
 networks:
   backend-net:
