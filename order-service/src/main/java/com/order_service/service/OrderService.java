@@ -2,6 +2,7 @@ package com.order_service.service;
 
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.order_service.client.InventoryClient;
 import com.order_service.dto.OrderCreatedMessage;
 import com.order_service.dto.QUEUE_NAME;
 import com.order_service.dto.OrderRequest;
@@ -21,10 +22,11 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderSender orderSender;
+    private final InventoryClient inventoryClient;
 
     public void placeOrder(OrderRequest orderRequest){
         // simulate inventory service call
-        var isProductInStock = true;
+        var isProductInStock = inventoryClient.isInStock(orderRequest.skuCode(), orderRequest.quantity());
         if(isProductInStock){
 
             try{
