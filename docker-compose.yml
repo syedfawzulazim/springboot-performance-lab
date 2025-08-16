@@ -141,15 +141,15 @@ services:
       - ./docker/mysql/init_2.sql:/docker-entrypoint-initdb.d/init_2.sql
 
   redis:
-    image: redis:7.2
+    image: redis/redis-stack:latest
     container_name: redis
     ports:
       - "6379:6379"
-    command: [ "redis-server", "--appendonly", "yes" ]
     volumes:
       - ./.data/redis_data:/data
     networks:
       - backend-net
+    restart: unless-stopped
 
 networks:
   backend-net:

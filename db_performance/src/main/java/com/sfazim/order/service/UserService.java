@@ -2,6 +2,7 @@ package com.sfazim.order.service;
 
 import com.sfazim.order.domain.model.User;
 import com.sfazim.order.repository.UserRepository;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -24,6 +25,7 @@ public class UserService {
         return userRepository.findAll();
     }
 
+    @Cacheable(value = "userCache", key = "#id")  // Cache by ID
     public Optional<User> getUserById(Long id) {
         return userRepository.findById(id);
     }
